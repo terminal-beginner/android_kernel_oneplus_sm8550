@@ -135,6 +135,80 @@ struct walt_rq {
 	u32			enqueue_counter;
 };
 
+#ifdef CONFIG_OPLUS_FEATURE_WALT_SMART_FREQ
+enum smart_freq_legacy_reason {
+	NO_REASON_SMART_FREQ,
+	BOOST_SMART_FREQ,
+	SUSTAINED_HIGH_UTIL_SMART_FREQ,
+	BIG_TASKCNT_SMART_FREQ,
+	TRAILBLAZER_SMART_FREQ,
+	SBT_SMART_FREQ,
+	PIPELINE_60FPS_OR_LESSER_SMART_FREQ,
+	PIPELINE_90FPS_SMART_FREQ,
+	PIPELINE_120FPS_OR_GREATER_SMART_FREQ,
+	THERMAL_ROTATION_SMART_FREQ,
+	LRPB_SMART_FREQ,
+	LEGACY_SMART_FREQ,
+};
+
+enum smart_freq_ipc_reason {
+	IPC_A,
+	IPC_B,
+	IPC_C,
+	IPC_D,
+	IPC_E,
+	SMART_FMAX_IPC_MAX,
+};
+#define IPC_PARTICIPATION	(BIT(IPC_A) | BIT(IPC_B) | BIT(IPC_C) | BIT(IPC_D) | BIT(IPC_E))
+
+DECLARE_PER_CPU(unsigned int, ipc_level);
+DECLARE_PER_CPU(unsigned long, ipc_cnt);
+DECLARE_PER_CPU(unsigned long, intr_cnt);
+DECLARE_PER_CPU(unsigned long, cycle_cnt);
+DECLARE_PER_CPU(u64, last_ipc_update);
+DECLARE_PER_CPU(u64, ipc_deactivate_ns);
+DECLARE_PER_CPU(bool, tickless_mode);
+
+struct smart_freq_legacy_reason_status {
+	u64 deactivate_ns;
+};
+
+struct smart_freq_legacy_reason_config {
+	unsigned long freq_allowed;
+	u64 hyst_ns;
+};
+
+struct smart_freq_ipc_reason_config {
+	unsigned long ipc;
+	unsigned long freq_allowed;
+	u64 hyst_ns;
+};
+
+struct smart_freq_cluster_info {
+	u32 smart_freq_participation_mask;
+	unsigned int cluster_active_reason;
+	unsigned int cluster_ipc_level;
+	unsigned long min_cycles;
+	u32 smart_freq_ipc_participation_mask;
+	struct smart_freq_legacy_reason_config legacy_reason_config[LEGACY_SMART_FREQ];
+	struct smart_freq_legacy_reason_status legacy_reason_status[LEGACY_SMART_FREQ];
+	struct smart_freq_ipc_reason_config ipc_reason_config[SMART_FMAX_IPC_MAX];
+};
+
+extern bool smart_freq_init_done;
+extern unsigned int big_task_cnt;
+extern struct smart_freq_cluster_info default_freq_config[MAX_CLUSTERS];
+
+extern unsigned int freq_cap[3][MAX_CLUSTERS];
+#define SMART_FREQ 1
+
+extern void smart_freq_init(const char *name);
+extern void smart_freq_update_reason_common(u64 window_start, int nr_big, u32 wakeup_ctr_sum);
+extern unsigned int get_cluster_ipc_level_freq(int curr_cpu, u64 time);
+extern void update_smart_freq_capacities_one_cluster(struct walt_sched_cluster *cluster);
+extern void update_smart_freq_capacities(void);
+#endif /* CONFIG_OPLUS_FEATURE_WALT_SMART_FREQ */
+
 struct walt_sched_cluster {
 	raw_spinlock_t		load_lock;
 	struct list_head	list;
@@ -149,6 +223,10 @@ struct walt_sched_cluster {
 	unsigned int		max_freq;
 	u64			aggr_grp_load;
 	unsigned long		util_to_cost[1024];
+#ifdef CONFIG_OPLUS_FEATURE_WALT_SMART_FREQ
+	unsigned int		walt_internal_freq_limit;
+	struct smart_freq_cluster_info *smart_freq_info;
+#endif
 };
 
 extern struct walt_sched_cluster *sched_cluster[WALT_NR_CPUS];
@@ -330,6 +408,9 @@ extern unsigned int sched_lib_mask_force;
 #define WALT_CPUFREQ_PL			0x8
 #define WALT_CPUFREQ_EARLY_DET		0x10
 #define WALT_CPUFREQ_BOOST_UPDATE	0x20
+#ifdef CONFIG_OPLUS_FEATURE_WALT_SMART_FREQ
+#define WALT_CPUFREQ_SMART_FREQ_BIT	0x40
+#endif
 #if IS_ENABLED(CONFIG_OPLUS_CPUFREQ_IOWAIT_PROTECT)
 #define WALT_CPUFREQ_IOWAIT		(1U << 10)
 #endif
@@ -347,6 +428,10 @@ extern unsigned int sched_lib_mask_force;
 #define CPUFREQ_REASON_SUH		0x200
 #define CPUFREQ_REASON_ADAPTIVE_LOW	0x400
 #define CPUFREQ_REASON_ADAPTIVE_HIGH	0x800
+#ifdef CONFIG_OPLUS_FEATURE_WALT_SMART_FREQ
+#define CPUFREQ_REASON_SMART_FREQ_BIT		BIT(12)
+#define CPUFREQ_REASON_IPC_SMART_FREQ_BIT	BIT(18)
+#endif
 
 #define NO_BOOST 0
 #define FULL_THROTTLE_BOOST 1

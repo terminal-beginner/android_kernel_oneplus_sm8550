@@ -1178,6 +1178,15 @@ void core_ctl_check(u64 window_start)
 	if (wakeup)
 		do_core_ctl();
 	core_ctl_call_notifier();
+
+#ifdef CONFIG_OPLUS_FEATURE_WALT_SMART_FREQ
+	/*
+	 * Note: 5.15 core_ctl_check doesn't receive wakeup_ctr_sum from walt.c 
+	 * by default. We pass 0 here safely. If BIG_TASKCNT_SMART_FREQ needs strict
+	 * wakeup limits later, we can patch walt.c to pass it.
+	 */
+	smart_freq_update_reason_common(window_start, last_nr_big, 0);
+#endif
 }
 
 /* must be called with state_lock held */
@@ -1564,6 +1573,10 @@ int core_ctl_init(void)
 #endif
 
 	initialized = true;
+
+#ifdef CONFIG_OPLUS_FEATURE_WALT_SMART_FREQ
+	smart_freq_init("KALAMA");
+#endif
 
 	return 0;
 }
