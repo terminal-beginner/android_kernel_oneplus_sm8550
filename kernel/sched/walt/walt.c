@@ -4325,7 +4325,7 @@ static inline void irq_work_restrict_to_mig_clusters(cpumask_t *lock_cpus)
 	}
 }
 
-static void update_cpu_capacity_helper(int cpu)
+void update_cpu_capacity_helper(int cpu)
 {
 	unsigned long fmax_capacity = arch_scale_cpu_capacity(cpu);
 	unsigned long thermal_pressure = arch_scale_thermal_pressure(cpu);

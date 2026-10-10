@@ -90,6 +90,22 @@ struct cluster_freq_relation cluster_arr[3][6];
 
 /* range is [1 .. INT_MAX] */
 static int sysctl_task_read_pid = 1;
+unsigned int sysctl_walt_features;
+
+#ifdef CONFIG_OPLUS_FEATURE_WALT_SMART_FREQ
+unsigned int sysctl_ipc_freq_levels_cluster0[SMART_FMAX_IPC_MAX];
+unsigned int sysctl_ipc_freq_levels_cluster1[SMART_FMAX_IPC_MAX];
+unsigned int sysctl_ipc_freq_levels_cluster2[SMART_FMAX_IPC_MAX];
+unsigned int sysctl_ipc_freq_levels_cluster3[SMART_FMAX_IPC_MAX];
+unsigned int sysctl_ipc_levels_cluster0[SMART_FMAX_IPC_MAX];
+unsigned int sysctl_ipc_levels_cluster1[SMART_FMAX_IPC_MAX];
+unsigned int sysctl_ipc_levels_cluster2[SMART_FMAX_IPC_MAX];
+unsigned int sysctl_ipc_levels_cluster3[SMART_FMAX_IPC_MAX];
+unsigned int sysctl_legacy_freq_levels_cluster0[LEGACY_SMART_FREQ*2];
+unsigned int sysctl_legacy_freq_levels_cluster1[LEGACY_SMART_FREQ*2];
+unsigned int sysctl_legacy_freq_levels_cluster2[LEGACY_SMART_FREQ*2];
+unsigned int sysctl_legacy_freq_levels_cluster3[LEGACY_SMART_FREQ*2];
+#endif
 
 static int walt_proc_group_thresholds_handler(struct ctl_table *table, int write,
 				       void __user *buffer, size_t *lenp,
@@ -1086,6 +1102,115 @@ struct ctl_table walt_table[] = {
 		.extra1		= SYSCTL_ZERO,
 		.extra2		= SYSCTL_INT_MAX,
 	},
+	{
+		.procname	= "sched_walt_features",
+		.data		= &sysctl_walt_features,
+		.maxlen		= sizeof(unsigned int),
+		.mode		= 0644,
+		.proc_handler	= proc_douintvec_minmax,
+		.extra1		= SYSCTL_ZERO,
+		.extra2		= SYSCTL_INT_MAX,
+	},
+#ifdef CONFIG_OPLUS_FEATURE_WALT_SMART_FREQ
+	{
+		.procname	= "sched_smart_freq_legacy_dump",
+		.data		= reason_dump,
+		.maxlen		= sizeof(reason_dump),
+		.mode		= 0444,
+		.proc_handler	= sched_smart_freq_legacy_dump_handler,
+	},
+	{
+		.procname	= "sched_smart_freq_ipc_dump",
+		.data		= reason_dump,
+		.maxlen		= sizeof(reason_dump),
+		.mode		= 0444,
+		.proc_handler	= sched_smart_freq_ipc_dump_handler,
+	},
+	{
+		.procname	= "sched_legacy_freq_levels_cluster0",
+		.data		= sysctl_legacy_freq_levels_cluster0,
+		.maxlen		= sizeof(sysctl_legacy_freq_levels_cluster0),
+		.mode		= 0644,
+		.proc_handler	= sched_smart_freq_legacy_freq_handler,
+	},
+	{
+		.procname	= "sched_legacy_freq_levels_cluster1",
+		.data		= sysctl_legacy_freq_levels_cluster1,
+		.maxlen		= sizeof(sysctl_legacy_freq_levels_cluster1),
+		.mode		= 0644,
+		.proc_handler	= sched_smart_freq_legacy_freq_handler,
+	},
+	{
+		.procname	= "sched_legacy_freq_levels_cluster2",
+		.data		= sysctl_legacy_freq_levels_cluster2,
+		.maxlen		= sizeof(sysctl_legacy_freq_levels_cluster2),
+		.mode		= 0644,
+		.proc_handler	= sched_smart_freq_legacy_freq_handler,
+	},
+	{
+		.procname	= "sched_legacy_freq_levels_cluster3",
+		.data		= sysctl_legacy_freq_levels_cluster3,
+		.maxlen		= sizeof(sysctl_legacy_freq_levels_cluster3),
+		.mode		= 0644,
+		.proc_handler	= sched_smart_freq_legacy_freq_handler,
+	},
+	{
+		.procname	= "sched_ipc_levels_cluster0",
+		.data		= sysctl_ipc_levels_cluster0,
+		.maxlen		= sizeof(sysctl_ipc_levels_cluster0),
+		.mode		= 0644,
+		.proc_handler	= sched_smart_freq_ipc_levels_handler,
+	},
+	{
+		.procname	= "sched_ipc_levels_cluster1",
+		.data		= sysctl_ipc_levels_cluster1,
+		.maxlen		= sizeof(sysctl_ipc_levels_cluster1),
+		.mode		= 0644,
+		.proc_handler	= sched_smart_freq_ipc_levels_handler,
+	},
+	{
+		.procname	= "sched_ipc_levels_cluster2",
+		.data		= sysctl_ipc_levels_cluster2,
+		.maxlen		= sizeof(sysctl_ipc_levels_cluster2),
+		.mode		= 0644,
+		.proc_handler	= sched_smart_freq_ipc_levels_handler,
+	},
+	{
+		.procname	= "sched_ipc_levels_cluster3",
+		.data		= sysctl_ipc_levels_cluster3,
+		.maxlen		= sizeof(sysctl_ipc_levels_cluster3),
+		.mode		= 0644,
+		.proc_handler	= sched_smart_freq_ipc_levels_handler,
+	},
+	{
+		.procname	= "sched_ipc_freq_levels_cluster0",
+		.data		= sysctl_ipc_freq_levels_cluster0,
+		.maxlen		= sizeof(sysctl_ipc_freq_levels_cluster0),
+		.mode		= 0644,
+		.proc_handler	= sched_smart_freq_ipc_handler,
+	},
+	{
+		.procname	= "sched_ipc_freq_levels_cluster1",
+		.data		= sysctl_ipc_freq_levels_cluster1,
+		.maxlen		= sizeof(sysctl_ipc_freq_levels_cluster1),
+		.mode		= 0644,
+		.proc_handler	= sched_smart_freq_ipc_handler,
+	},
+	{
+		.procname	= "sched_ipc_freq_levels_cluster2",
+		.data		= sysctl_ipc_freq_levels_cluster2,
+		.maxlen		= sizeof(sysctl_ipc_freq_levels_cluster2),
+		.mode		= 0644,
+		.proc_handler	= sched_smart_freq_ipc_handler,
+	},
+	{
+		.procname	= "sched_ipc_freq_levels_cluster3",
+		.data		= sysctl_ipc_freq_levels_cluster3,
+		.maxlen		= sizeof(sysctl_ipc_freq_levels_cluster3),
+		.mode		= 0644,
+		.proc_handler	= sched_smart_freq_ipc_handler,
+	},
+#endif
 	{
 		.procname	= "cluster2_rel",
 		.data		= sysctl_cluster_arr[2],
