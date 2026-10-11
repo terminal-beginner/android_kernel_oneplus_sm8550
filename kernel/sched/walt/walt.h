@@ -199,7 +199,8 @@ extern bool smart_freq_init_done;
 extern unsigned int big_task_cnt;
 extern struct smart_freq_cluster_info default_freq_config[MAX_CLUSTERS];
 
-extern unsigned int freq_cap[3][MAX_CLUSTERS];
+#define MAX_FREQ_CAP	3
+extern unsigned int freq_cap[MAX_FREQ_CAP][MAX_CLUSTERS];
 #define SMART_FREQ 1
 
 extern void smart_freq_init(const char *name);
@@ -207,6 +208,34 @@ extern void smart_freq_update_reason_common(u64 window_start, int nr_big, u32 wa
 extern unsigned int get_cluster_ipc_level_freq(int curr_cpu, u64 time);
 extern void update_smart_freq_capacities_one_cluster(struct walt_sched_cluster *cluster);
 extern void update_smart_freq_capacities(void);
+
+#define SCHED_RAVG_8MS_WINDOW	8000000
+#define SCHED_RAVG_12MS_WINDOW	12000000
+#define SCHED_RAVG_16MS_WINDOW	16000000
+
+extern char reason_dump[1024];
+extern unsigned int sysctl_ipc_freq_levels_cluster0[SMART_FMAX_IPC_MAX];
+extern unsigned int sysctl_ipc_freq_levels_cluster1[SMART_FMAX_IPC_MAX];
+extern unsigned int sysctl_ipc_freq_levels_cluster2[SMART_FMAX_IPC_MAX];
+extern unsigned int sysctl_ipc_freq_levels_cluster3[SMART_FMAX_IPC_MAX];
+extern unsigned int sysctl_ipc_levels_cluster0[SMART_FMAX_IPC_MAX];
+extern unsigned int sysctl_ipc_levels_cluster1[SMART_FMAX_IPC_MAX];
+extern unsigned int sysctl_ipc_levels_cluster2[SMART_FMAX_IPC_MAX];
+extern unsigned int sysctl_ipc_levels_cluster3[SMART_FMAX_IPC_MAX];
+extern unsigned int sysctl_legacy_freq_levels_cluster0[LEGACY_SMART_FREQ*2];
+extern unsigned int sysctl_legacy_freq_levels_cluster1[LEGACY_SMART_FREQ*2];
+extern unsigned int sysctl_legacy_freq_levels_cluster2[LEGACY_SMART_FREQ*2];
+extern unsigned int sysctl_legacy_freq_levels_cluster3[LEGACY_SMART_FREQ*2];
+extern int sched_smart_freq_legacy_dump_handler(struct ctl_table *table, int write,
+		void __user *buffer, size_t *lenp, loff_t *ppos);
+extern int sched_smart_freq_ipc_dump_handler(struct ctl_table *table, int write,
+		void __user *buffer, size_t *lenp, loff_t *ppos);
+extern int sched_smart_freq_legacy_freq_handler(struct ctl_table *table, int write,
+		void __user *buffer, size_t *lenp, loff_t *ppos);
+extern int sched_smart_freq_ipc_levels_handler(struct ctl_table *table, int write,
+		void __user *buffer, size_t *lenp, loff_t *ppos);
+extern int sched_smart_freq_ipc_handler(struct ctl_table *table, int write,
+		void __user *buffer, size_t *lenp, loff_t *ppos);
 #endif /* CONFIG_OPLUS_FEATURE_WALT_SMART_FREQ */
 
 struct walt_sched_cluster {
@@ -226,10 +255,12 @@ struct walt_sched_cluster {
 #ifdef CONFIG_OPLUS_FEATURE_WALT_SMART_FREQ
 	unsigned int		walt_internal_freq_limit;
 	struct smart_freq_cluster_info *smart_freq_info;
+	u64			found_ts;
 #endif
 };
 
 extern struct walt_sched_cluster *sched_cluster[WALT_NR_CPUS];
+extern void update_cpu_capacity_helper(int cpu);
 
 /*END SCHED.H PORT*/
 
@@ -281,6 +312,11 @@ extern unsigned int __read_mostly sched_load_granule;
 
 extern unsigned int sysctl_sched_idle_enough;
 extern unsigned int sysctl_sched_cluster_util_thres_pct;
+
+/* WALT feature mask; bit positions match the 6.1 sched_walt_features sysctl */
+#define WALT_FEAT_SYNC_FREQ_CAP_BIT	BIT_ULL(2)
+extern unsigned int sysctl_walt_features;
+#define sysctl_walt_feat(feat)	(sysctl_walt_features & (feat))
 
 /* 1ms default for 20ms window size scaled to 1024 */
 extern unsigned int sysctl_sched_min_task_util_for_boost;
@@ -599,6 +635,14 @@ static inline bool is_full_throttle_boost(void)
 {
 	return sched_boost_type == FULL_THROTTLE_BOOST;
 }
+
+#ifdef CONFIG_OPLUS_FEATURE_WALT_SMART_FREQ
+extern int pipeline_nr;
+static inline bool pipeline_in_progress(void)
+{
+	return !sched_boost_type && pipeline_nr;
+}
+#endif
 
 static inline bool task_sched_boost(struct task_struct *p)
 {

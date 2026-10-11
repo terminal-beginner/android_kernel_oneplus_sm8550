@@ -13,26 +13,8 @@ bool smart_freq_init_done;
 char reason_dump[1024];
 static DEFINE_MUTEX(freq_reason_mutex);
 
-inline bool cluster_in_smart_lrpb(struct walt_sched_cluster *cluster)
-{
-	int cpu;
-	struct walt_rq *wrq;
 
-	if (!(default_freq_config[cluster->id].smart_freq_participation_mask &
-								BIT(LRPB_SMART_FREQ)))
-		return false;
-
-	for_each_cpu(cpu, &cluster->cpus) {
-		wrq = &per_cpu(walt_rq, cpu);
-		if (wrq->lrb_pipeline_start_time)
-			return true;
-	}
-
-	return false;
-}
-
-
-int sched_smart_freq_legacy_dump_handler(const struct ctl_table *table, int write,
+int sched_smart_freq_legacy_dump_handler(struct ctl_table *table, int write,
 					 void __user *buffer, size_t *lenp,
 					 loff_t *ppos)
 {
@@ -58,7 +40,7 @@ int sched_smart_freq_legacy_dump_handler(const struct ctl_table *table, int writ
 	return ret;
 }
 
-int sched_smart_freq_ipc_dump_handler(const struct ctl_table *table, int write,
+int sched_smart_freq_ipc_dump_handler(struct ctl_table *table, int write,
 					 void __user *buffer, size_t *lenp,
 					 loff_t *ppos)
 {
@@ -86,7 +68,7 @@ int sched_smart_freq_ipc_dump_handler(const struct ctl_table *table, int write,
 	return ret;
 }
 
-int sched_smart_freq_legacy_freq_handler(const struct ctl_table *table, int write,
+int sched_smart_freq_legacy_freq_handler(struct ctl_table *table, int write,
 		void __user *buffer, size_t *lenp,
 		loff_t *ppos)
 {
@@ -193,7 +175,7 @@ out:
 	return ret;
 }
 
-int sched_smart_freq_ipc_levels_handler(const struct ctl_table *table, int write,
+int sched_smart_freq_ipc_levels_handler(struct ctl_table *table, int write,
 				      void __user *buffer, size_t *lenp,
 				      loff_t *ppos)
 {
@@ -265,7 +247,7 @@ unlock:
 	return ret;
 }
 
-int sched_smart_freq_ipc_handler(const struct ctl_table *table, int write,
+int sched_smart_freq_ipc_handler(struct ctl_table *table, int write,
 				      void __user *buffer, size_t *lenp,
 				      loff_t *ppos)
 {
@@ -530,7 +512,7 @@ static bool thres_based_uncap(u64 window_start, struct walt_sched_cluster *clust
 	tgt_cap = mult_frac(freq_capacity, tgt_freq, cluster->max_possible_freq);
 
 	for_each_cpu(cpu, &cluster->cpus) {
-		wrq = &per_cpu(walt_rq, cpu);
+		wrq = (struct walt_rq *) cpu_rq(cpu)->android_vendor_data1;
 		if (wrq->util >= mult_frac(tgt_cap, UTIL_THRESHOLD, 100)) {
 			cluster_high_load = true;
 			if (!cluster->found_ts)
@@ -593,28 +575,12 @@ void smart_freq_update_reason_common(u64 wallclock, int nr_big, u32 wakeup_ctr_s
 		 * BOOST
 		 */
 		if (cluster_participation_mask & BIT(BOOST_SMART_FREQ)) {
-			current_state = is_storage_boost() || is_full_throttle_boost();
+			current_state = is_full_throttle_boost();
 			if (current_state)
 				cluster_reasons |= BIT(BOOST_SMART_FREQ);
 		}
 
-		/*
-		 * TRAILBLAZER
-		 */
-		if (cluster_participation_mask & BIT(TRAILBLAZER_SMART_FREQ)) {
-			current_state = trailblazer_boost_state_ns ? true : false;
-			if (current_state)
-				cluster_reasons |= BIT(TRAILBLAZER_SMART_FREQ);
-		}
 
-		/*
-		 * SBT
-		 */
-		if (cluster_participation_mask & BIT(SBT_SMART_FREQ)) {
-			current_state = prev_is_sbt;
-			if (current_state)
-				cluster_reasons |= BIT(SBT_SMART_FREQ);
-		}
 
 		/*
 		 * BIG_TASKCNT
@@ -671,23 +637,7 @@ void smart_freq_update_reason_common(u64 wallclock, int nr_big, u32 wakeup_ctr_s
 					BIT(PIPELINE_120FPS_OR_GREATER_SMART_FREQ);
 		}
 
-		/*
-		 * THERMAL_ROTATION
-		 */
-		if (cluster_participation_mask & BIT(THERMAL_ROTATION_SMART_FREQ)) {
-			current_state = (oscillate_cpu != -1);
-			if (current_state)
-				cluster_reasons |= BIT(THERMAL_ROTATION_SMART_FREQ);
-		}
 
-		/*
-		 * LRPB
-		 */
-		if (cluster_participation_mask & BIT(LRPB_SMART_FREQ)) {
-			current_state = cluster_in_smart_lrpb(cluster);
-			if (current_state)
-				cluster_reasons |= BIT(LRPB_SMART_FREQ);
-		}
 
 		cluster_active_reason = cluster->smart_freq_info->cluster_active_reason;
 out:
@@ -700,6 +650,8 @@ out:
 
 /* Common config for 4 cluster system */
 struct smart_freq_cluster_info default_freq_config[MAX_CLUSTERS];
+
+static void smart_freq_sched_tick(void *data, struct rq *rq);
 
 void smart_freq_init(const char *name)
 {
@@ -1023,6 +975,7 @@ void smart_freq_init(const char *name)
 			}
 		}
 	} else if (!strcmp(name, "KALAMA")) {
+		sysctl_walt_features |= WALT_FEAT_SYNC_FREQ_CAP_BIT;
 		for_each_sched_cluster(cluster) {
 			if (cluster->id == 0) {
 				/* Cluster 0: Silver (CPUs 0-2) max 2.02 GHz */
@@ -1116,7 +1069,7 @@ static unsigned long smart_freq_calculate_ipc(int cpu, int cluster_id)
 static void smart_freq_sched_tick(void *data, struct rq *rq)
 {
 	int i = 0, cpu = cpu_of(rq);
-	int cluster_id = topology_cluster_id(cpu);
+	int cluster_id = cpu_cluster(cpu)->id;
 	u64 last_ipc_level, curr_ipc_level, last_deactivate_ns;
 	unsigned long ipc = 0;
 	bool inform_governor = false;
