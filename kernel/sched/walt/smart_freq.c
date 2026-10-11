@@ -10,6 +10,23 @@
 #include "trace.h"
 
 bool smart_freq_init_done;
+
+/*
+ * Defined in walt.c / sysctl.c on 6.1. Every slot must start at "no cap":
+ * only SMART_FREQ is written on 5.15, and has_internal_freq_limit_changed()
+ * takes the min() over all slots.
+ */
+unsigned int freq_cap[MAX_FREQ_CAP][MAX_CLUSTERS] = {
+	[0 ... MAX_FREQ_CAP - 1] = { [0 ... MAX_CLUSTERS - 1] = FREQ_QOS_MAX_DEFAULT_VALUE },
+};
+
+DEFINE_PER_CPU(unsigned int, ipc_level);
+DEFINE_PER_CPU(unsigned long, ipc_cnt);
+DEFINE_PER_CPU(unsigned long, intr_cnt);
+DEFINE_PER_CPU(unsigned long, cycle_cnt);
+DEFINE_PER_CPU(u64, last_ipc_update);
+DEFINE_PER_CPU(u64, ipc_deactivate_ns);
+DEFINE_PER_CPU(bool, tickless_mode);
 char reason_dump[1024];
 static DEFINE_MUTEX(freq_reason_mutex);
 
