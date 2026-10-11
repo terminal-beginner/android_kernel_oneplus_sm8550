@@ -4349,6 +4349,15 @@ void update_cpu_capacity_helper(int cpu)
 
 	cluster = cpu_cluster(cpu);
 	/* reduce the fmax_capacity under cpufreq constraints */
+#ifdef CONFIG_OPLUS_FEATURE_WALT_SMART_FREQ
+	/* the limit is 0 until smart_freq_init() has computed it */
+	if (smart_freq_init_done && cluster->walt_internal_freq_limit &&
+	    cluster->walt_internal_freq_limit != cluster->max_possible_freq)
+		fmax_capacity = mult_frac(fmax_capacity,
+					  min(cluster->walt_internal_freq_limit, cluster->max_freq),
+					  cluster->max_possible_freq);
+	else
+#endif
 	if (cluster->max_freq != cluster->max_possible_freq)
 		fmax_capacity = mult_frac(fmax_capacity, cluster->max_freq,
 					 cluster->max_possible_freq);

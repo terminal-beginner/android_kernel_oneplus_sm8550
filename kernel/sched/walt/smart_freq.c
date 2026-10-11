@@ -1049,6 +1049,8 @@ void smart_freq_init(const char *name)
 done:
 	register_trace_android_vh_scheduler_tick(smart_freq_sched_tick, NULL);
 	smart_freq_init_done = true;
+	pr_info("smart_freq: init for %s, %d clusters, AMU %s\n", name, num_sched_clusters,
+		cpus_have_const_cap(ARM64_HAS_AMU_EXTN) ? "present" : "absent");
 	update_smart_freq_capacities();
 
 }
@@ -1087,6 +1089,7 @@ static void smart_freq_sched_tick(void *data, struct rq *rq)
 {
 	int i = 0, cpu = cpu_of(rq);
 	int cluster_id = cpu_cluster(cpu)->id;
+	struct walt_sched_cluster *cluster;
 	u64 last_ipc_level, curr_ipc_level, last_deactivate_ns;
 	unsigned long ipc = 0;
 	bool inform_governor = false;
@@ -1111,11 +1114,32 @@ static void smart_freq_sched_tick(void *data, struct rq *rq)
 		if ((curr_ipc_level != last_ipc_level) || per_cpu(tickless_mode, cpu))
 			inform_governor = true;
 
+		/* hold the previous (higher) level for its hysteresis before dropping */
+		if ((curr_ipc_level < last_ipc_level) &&
+		    (default_freq_config[cluster_id].ipc_reason_config[last_ipc_level].hyst_ns > 0)) {
+			if (!last_deactivate_ns) {
+				per_cpu(ipc_deactivate_ns, cpu) = rq->clock;
+				inform_governor = false;
+			} else {
+				u64 delta = rq->clock - last_deactivate_ns;
+
+				if (default_freq_config[cluster_id].ipc_reason_config[last_ipc_level].hyst_ns >
+				    delta)
+					inform_governor = false;
+			}
+		}
+
 		if (inform_governor) {
 			per_cpu(ipc_level, cpu) = curr_ipc_level;
 			per_cpu(ipc_deactivate_ns, cpu) = 0;
-			/* Trigger frequency update via WALT governor */
-			cpufreq_update_util(cpu_rq(cpu), WALT_CPUFREQ_SMART_FREQ_BIT);
+			/*
+			 * update this and bigger clusters. The bigger clusters will update
+			 * their caps to keep their capacities above the smaller ones.
+			 * WALT's governor is not on the cpufreq_update_util() hook list.
+			 */
+			for_each_sched_cluster(cluster)
+				waltgov_run_callback(cpu_rq(cpumask_first(&cluster->cpus)),
+						     WALT_CPUFREQ_SMART_FREQ_BIT);
 		}
 	}
 }
