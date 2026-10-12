@@ -4380,6 +4380,9 @@ static void android_rvh_update_cpu_capacity(void *unused, int cpu, unsigned long
 #endif
 }
 
+/* wakeups per cpu in the current window, summed in walt_irq_work() */
+DEFINE_PER_CPU(u32, wakeup_ctr);
+
 /**
  * walt_irq_work() - perform walt irq work for rollover and migration
  *
@@ -4814,8 +4817,6 @@ static void android_rvh_flush_task(void *unused, struct task_struct *p)
 		return;
 	walt_task_dead(p);
 }
-
-DEFINE_PER_CPU(u32, wakeup_ctr);
 
 static void android_rvh_enqueue_task(void *unused, struct rq *rq, struct task_struct *p,
 				     int flags)
