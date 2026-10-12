@@ -279,7 +279,7 @@ extern void walt_rotation_checkpoint(int nr_big);
 extern void walt_fill_ta_data(struct core_ctl_notif_data *data);
 extern int sched_set_group_id(struct task_struct *p, unsigned int group_id);
 extern unsigned int sched_get_group_id(struct task_struct *p);
-extern void core_ctl_check(u64 wallclock);
+extern void core_ctl_check(u64 wallclock, u32 wakeup_ctr_sum);
 extern int sched_set_boost(int enable);
 extern void walt_boost_init(void);
 extern int sched_pause_cpus(struct cpumask *pause_cpus);
@@ -641,6 +641,27 @@ extern int pipeline_nr;
 static inline bool pipeline_in_progress(void)
 {
 	return !sched_boost_type && pipeline_nr;
+}
+
+extern unsigned int sysctl_sched_sbt_enable;
+extern bool prev_is_sbt;
+
+static inline bool any_large_above_util_threshold(unsigned long util)
+{
+	int cpu;
+
+	for_each_cpu(cpu, &cpu_array[0][num_sched_clusters - 1])
+		if (cpu_util(cpu) > util)
+			return true;
+
+	return false;
+}
+
+#define LARGE_CPU_THROTTLED_CAP_THRESH	700
+static inline bool is_large_cpu_cap_low(void)
+{
+	return capacity_orig_of(cpumask_first(&cpu_array[0][num_sched_clusters - 1])) <
+	       LARGE_CPU_THROTTLED_CAP_THRESH;
 }
 #endif
 

@@ -610,6 +610,15 @@ void smart_freq_update_reason_common(u64 wallclock, int nr_big, u32 wakeup_ctr_s
 		}
 
 		/*
+		 * SBT
+		 */
+		if (cluster_participation_mask & BIT(SBT_SMART_FREQ)) {
+			current_state = prev_is_sbt;
+			if (current_state)
+				cluster_reasons |= BIT(SBT_SMART_FREQ);
+		}
+
+		/*
 		 * SUSTAINED_HIGH_UTIL
 		 */
 		if (cluster_participation_mask & BIT(SUSTAINED_HIGH_UTIL_SMART_FREQ)) {
