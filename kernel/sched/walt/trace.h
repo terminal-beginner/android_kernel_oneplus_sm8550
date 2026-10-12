@@ -1661,6 +1661,28 @@ TRACE_EVENT(ipc_freq,
 		  __entry->time, __entry->deactivate_ns, __entry->curr_cpu, __entry->ipc_cnt)
 );
 
+TRACE_EVENT(core_ctl_sbt,
+
+	TP_PROTO(bool prev_is_sbt, bool now_is_sbt, int prime_big_tasks),
+
+	TP_ARGS(prev_is_sbt, now_is_sbt, prime_big_tasks),
+
+	TP_STRUCT__entry(
+		__field(unsigned int, prev_is_sbt)
+		__field(unsigned int, now_is_sbt)
+		__field(int, prime_big_tasks)
+	),
+
+	TP_fast_assign(
+		__entry->prev_is_sbt = prev_is_sbt;
+		__entry->now_is_sbt = now_is_sbt;
+		__entry->prime_big_tasks = prime_big_tasks;
+	),
+
+	TP_printk("prev_is_sbt=%d now_is_sbt=%d prime_big_tasks=%d",
+		  __entry->prev_is_sbt, __entry->now_is_sbt, __entry->prime_big_tasks)
+);
+
 #endif /* _TRACE_WALT_H */
 
 #undef TRACE_INCLUDE_PATH

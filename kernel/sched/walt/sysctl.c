@@ -105,6 +105,7 @@ unsigned int sysctl_legacy_freq_levels_cluster0[LEGACY_SMART_FREQ*2];
 unsigned int sysctl_legacy_freq_levels_cluster1[LEGACY_SMART_FREQ*2];
 unsigned int sysctl_legacy_freq_levels_cluster2[LEGACY_SMART_FREQ*2];
 unsigned int sysctl_legacy_freq_levels_cluster3[LEGACY_SMART_FREQ*2];
+unsigned int sysctl_sched_sbt_enable = 1;
 #endif
 
 static int walt_proc_group_thresholds_handler(struct ctl_table *table, int write,
@@ -1112,6 +1113,15 @@ struct ctl_table walt_table[] = {
 		.extra2		= SYSCTL_INT_MAX,
 	},
 #ifdef CONFIG_OPLUS_FEATURE_WALT_SMART_FREQ
+	{
+		.procname	= "sched_sbt_enable",
+		.data		= &sysctl_sched_sbt_enable,
+		.maxlen		= sizeof(unsigned int),
+		.mode		= 0644,
+		.proc_handler	= proc_douintvec_minmax,
+		.extra1		= SYSCTL_ZERO,
+		.extra2		= SYSCTL_ONE,
+	},
 	{
 		.procname	= "sched_smart_freq_legacy_dump",
 		.data		= reason_dump,

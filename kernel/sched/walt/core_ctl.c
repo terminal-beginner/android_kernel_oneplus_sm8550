@@ -49,6 +49,7 @@ struct cluster_data {
 	unsigned int		nr_prev_assist;
 	unsigned int		nr_prev_assist_32bit;
 	unsigned int		nr_prev_assist_thresh;
+	unsigned int		nr_big;
 	s64			need_ts;
 	struct list_head	lru;
 	bool			enable;
@@ -788,7 +789,8 @@ static void update_running_avg(void)
 					cluster->nrrun, cluster->max_nr,
 					cluster->nr_prev_assist);
 
-		big_avg += cluster_real_big_tasks(index);
+		cluster->nr_big = cluster_real_big_tasks(index);
+		big_avg += cluster->nr_big;
 	}
 	spin_unlock_irqrestore(&state_lock, flags);
 
@@ -1132,6 +1134,78 @@ static void core_ctl_call_notifier(void)
 	atomic_notifier_call_chain(&core_ctl_notifier, 0, &ndata);
 }
 
+#ifdef CONFIG_OPLUS_FEATURE_WALT_SMART_FREQ
+/*
+ * Single-big-thread (SBT) detection, ported from 6.1 for the SBT smart freq
+ * reason. Only the detection is ported: the 6.1 code can also pause the small
+ * cpus on SBT entry (sched_sbt_pause_cpus), which is left out.
+ */
+#define SBT_CPU_BUSY_PCT_THRESH		20
+#define SBT_CPU_BUSY_UTIL_THRESH	200
+#define SBT_LIMIT			45
+
+bool prev_is_sbt;
+
+static bool core_ctl_non_large_cpus_below_busy_pct(void)
+{
+	cpumask_t non_large_cpus = { CPU_BITS_NONE };
+	struct cpu_data *c;
+	int cpu;
+	int i;
+
+	for (i = 0; i < num_sched_clusters - 1; i++)
+		cpumask_or(&non_large_cpus, &non_large_cpus, &cpu_array[0][i]);
+
+	for_each_cpu(cpu, &non_large_cpus) {
+		c = &per_cpu(cpu_state, cpu);
+		if (c->busy_pct > SBT_CPU_BUSY_PCT_THRESH)
+			return false;
+	}
+
+	return true;
+}
+
+/* is the system in a single-big-thread case? */
+static bool core_ctl_is_sbt(u32 wakeup_ctr_sum)
+{
+	struct cluster_data *cluster = &cluster_state[num_sched_clusters - 1];
+	bool ret = false;
+
+	if (!sysctl_sched_sbt_enable)
+		goto out;
+
+	if (last_nr_big != 1)
+		goto out;
+
+	if (cluster->nr_big != 1)
+		goto out;
+
+	if (wakeup_ctr_sum > SBT_LIMIT)
+		goto out;
+
+	if (!core_ctl_non_large_cpus_below_busy_pct())
+		goto out;
+
+	if (!any_large_above_util_threshold(SBT_CPU_BUSY_UTIL_THRESH))
+		goto out;
+
+	if (is_large_cpu_cap_low())
+		goto out;
+
+	ret = true;
+out:
+	trace_core_ctl_sbt(prev_is_sbt, ret, cluster->nr_big);
+
+	return ret;
+}
+
+/* must be called every window rollover, after update_running_avg() */
+static void sbt_ctl_check(u32 wakeup_ctr_sum)
+{
+	prev_is_sbt = core_ctl_is_sbt(wakeup_ctr_sum);
+}
+#endif
+
 /*
  * sched_get_nr_running_avg will wipe out previous statistics and
  * update it to the values computed since the last call.
@@ -1140,7 +1214,7 @@ static void core_ctl_call_notifier(void)
  * window based. Therefore core_ctl_check must only be called from
  * window rollover, or walt_irq_work for not migration.
  */
-void core_ctl_check(u64 window_start)
+void core_ctl_check(u64 window_start, u32 wakeup_ctr_sum)
 {
 	int cpu;
 	struct cpu_data *c;
@@ -1180,12 +1254,10 @@ void core_ctl_check(u64 window_start)
 	core_ctl_call_notifier();
 
 #ifdef CONFIG_OPLUS_FEATURE_WALT_SMART_FREQ
-	/*
-	 * Note: 5.15 core_ctl_check doesn't receive wakeup_ctr_sum from walt.c 
-	 * by default. We pass 0 here safely. If BIG_TASKCNT_SMART_FREQ needs strict
-	 * wakeup limits later, we can patch walt.c to pass it.
-	 */
-	smart_freq_update_reason_common(window_start, last_nr_big, 0);
+	smart_freq_update_reason_common(window_start, last_nr_big, wakeup_ctr_sum);
+
+	/* independent check from eval_need; the reasons above saw last window's state */
+	sbt_ctl_check(wakeup_ctr_sum);
 #endif
 }
 

@@ -4395,6 +4395,7 @@ static void walt_irq_work(struct irq_work *irq_work)
 	int level = 0;
 	int cpu;
 	bool is_migration = false;
+	u32 wakeup_ctr_sum = 0;
 
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_GKI_CPUFREQ_BOUNCING)
 	struct walt_sched_cluster *cluster;
@@ -4434,6 +4435,13 @@ static void walt_irq_work(struct irq_work *irq_work)
 
 	__walt_irq_work_locked(is_migration, &lock_cpus);
 
+	if (!is_migration) {
+		for_each_cpu(cpu, cpu_online_mask) {
+			wakeup_ctr_sum += per_cpu(wakeup_ctr, cpu);
+			per_cpu(wakeup_ctr, cpu) = 0;
+		}
+	}
+
 	for_each_cpu(cpu, &lock_cpus)
 		raw_spin_unlock(&cpu_rq(cpu)->__lock);
 
@@ -4446,7 +4454,7 @@ static void walt_irq_work(struct irq_work *irq_work)
 #else
 		qcom_rearrange_pipeline_preferred_cpus(walt_scale_demand_divisor);
 #endif
-		core_ctl_check(wrq->window_start);
+		core_ctl_check(wrq->window_start, wakeup_ctr_sum);
 	}
 }
 
@@ -4807,6 +4815,8 @@ static void android_rvh_flush_task(void *unused, struct task_struct *p)
 	walt_task_dead(p);
 }
 
+DEFINE_PER_CPU(u32, wakeup_ctr);
+
 static void android_rvh_enqueue_task(void *unused, struct rq *rq, struct task_struct *p,
 				     int flags)
 {
@@ -4822,6 +4832,9 @@ static void android_rvh_enqueue_task(void *unused, struct rq *rq, struct task_st
 		return;
 
 	walt_lockdep_assert_rq(rq, p);
+
+	if (flags & ENQUEUE_WAKEUP)
+		per_cpu(wakeup_ctr, cpu_of(rq)) += 1;
 
 	if (!is_per_cpu_kthread(p))
 		wrq->enqueue_counter++;
