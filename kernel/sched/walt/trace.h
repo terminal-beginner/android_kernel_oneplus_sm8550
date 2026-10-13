@@ -1683,6 +1683,36 @@ TRACE_EVENT(core_ctl_sbt,
 		  __entry->prev_is_sbt, __entry->now_is_sbt, __entry->prime_big_tasks)
 );
 
+TRACE_EVENT(smart_freq_ipc,
+
+	TP_PROTO(int cpu, int cluster, unsigned long ipc, u64 delta_cycl, u64 delta_intr,
+		 unsigned int level),
+
+	TP_ARGS(cpu, cluster, ipc, delta_cycl, delta_intr, level),
+
+	TP_STRUCT__entry(
+		__field(int, cpu)
+		__field(int, cluster)
+		__field(unsigned long, ipc)
+		__field(u64, delta_cycl)
+		__field(u64, delta_intr)
+		__field(unsigned int, level)
+	),
+
+	TP_fast_assign(
+		__entry->cpu = cpu;
+		__entry->cluster = cluster;
+		__entry->ipc = ipc;
+		__entry->delta_cycl = delta_cycl;
+		__entry->delta_intr = delta_intr;
+		__entry->level = level;
+	),
+
+	TP_printk("cpu=%d cluster=%d ipc_x100=%lu delta_cycles=%llu delta_instr=%llu ipc_level=%u",
+		  __entry->cpu, __entry->cluster, __entry->ipc, __entry->delta_cycl,
+		  __entry->delta_intr, __entry->level)
+);
+
 #endif /* _TRACE_WALT_H */
 
 #undef TRACE_INCLUDE_PATH

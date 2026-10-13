@@ -644,6 +644,7 @@ static inline bool pipeline_in_progress(void)
 }
 
 extern unsigned int sysctl_sched_sbt_enable;
+extern unsigned int sysctl_smart_freq_ipc_trace;
 extern bool prev_is_sbt;
 
 static inline bool any_large_above_util_threshold(unsigned long util)

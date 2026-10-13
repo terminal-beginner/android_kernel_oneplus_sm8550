@@ -1091,6 +1091,8 @@ static unsigned long smart_freq_calculate_ipc(int cpu, int cluster_id)
 	per_cpu(ipc_cnt, cpu) = ipc;
 	per_cpu(last_ipc_update, cpu) = cpu_rq(cpu)->clock;
 
+	trace_smart_freq_ipc(cpu, cluster_id, ipc, delta_cycl, delta_intr, per_cpu(ipc_level, cpu));
+
 	return ipc;
 }
 
@@ -1108,6 +1110,11 @@ static void smart_freq_sched_tick(void *data, struct rq *rq)
 		return;
 
 	max_ipc_count = hweight32(default_freq_config[cluster_id].smart_freq_ipc_participation_mask);
+
+	/* sample IPC for the smart_freq_ipc trace even when no IPC level table is set up */
+	if (sysctl_smart_freq_ipc_trace &&
+	    !(default_freq_config[cluster_id].smart_freq_ipc_participation_mask & IPC_PARTICIPATION))
+		smart_freq_calculate_ipc(cpu, cluster_id);
 
 	if (default_freq_config[cluster_id].smart_freq_ipc_participation_mask & IPC_PARTICIPATION) {
 		last_ipc_level = per_cpu(ipc_level, cpu);
