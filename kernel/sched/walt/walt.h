@@ -262,6 +262,12 @@ struct walt_sched_cluster {
 extern struct walt_sched_cluster *sched_cluster[WALT_NR_CPUS];
 extern void update_cpu_capacity_helper(int cpu);
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_CPU_CLOSE_LOOP)
+extern void walt_cl_update_util_ops(unsigned long (*util)(int cpu, unsigned long orig, bool ed_active),
+				    unsigned long (*boost_util)(int cpu, unsigned long orig, bool ed_active));
+extern void walt_trig_cpufreq_update(int cpu);
+#endif
+
 /*END SCHED.H PORT*/
 
 extern u64 walt_sched_clock(void);

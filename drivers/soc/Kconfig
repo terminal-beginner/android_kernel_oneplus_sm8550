@@ -82,6 +82,10 @@ source "kernel/oplus_cpu/cpufreq_bouncing/Kconfig"
 source "kernel/oplus_cpu/smart_freq/Kconfig"
 #endif /* OPLUS_FEATURE_WALT_SMART_FREQ */
 
+#ifdef OPLUS_FEATURE_CPU_CLOSE_LOOP
+source "kernel/oplus_cpu/close_loop/Kconfig"
+#endif /* OPLUS_FEATURE_CPU_CLOSE_LOOP */
+
 #ifdef OPLUS_FEATURE_FREQQOS_MONITOR
 source "kernel/oplus_cpu/freqqos_monitor/Kconfig"
 #endif /* OPLUS_FEATURE_FREQQOS_MONITOR */

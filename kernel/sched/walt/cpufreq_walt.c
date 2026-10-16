@@ -548,6 +548,55 @@ static unsigned int get_next_freq(struct waltgov_policy *wg_policy,
 	return final_freq;
 }
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_CPU_CLOSE_LOOP)
+/*
+ * close_loop lowers the util seen by the governor while rendering has spare time.
+ * It is a separate module and registers its entry points here; with none registered
+ * walt_cl_util() returns the util unchanged.
+ */
+static unsigned long (*cl_util_fn)(int cpu, unsigned long orig, bool ed_active);
+static unsigned long (*cl_boost_util_fn)(int cpu, unsigned long orig, bool ed_active);
+
+void walt_cl_update_util_ops(unsigned long (*util)(int cpu, unsigned long orig, bool ed_active),
+			     unsigned long (*boost_util)(int cpu, unsigned long orig, bool ed_active))
+{
+	WRITE_ONCE(cl_boost_util_fn, boost_util);
+	WRITE_ONCE(cl_util_fn, util);
+}
+EXPORT_SYMBOL_GPL(walt_cl_update_util_ops);
+
+static inline unsigned long walt_cl_util(int cpu, unsigned long util, bool ed_active)
+{
+	unsigned long (*fn)(int cpu, unsigned long orig, bool ed_active) = READ_ONCE(cl_util_fn);
+
+	return fn ? fn(cpu, util, ed_active) : util;
+}
+
+/*
+ * Re-run the governor for one cpu (or all online cpus when cpu < 0) right away.
+ * close_loop calls this from process context, so take the rq lock the way the
+ * scheduler-side callers do: the callback expects irqs off and the rq locked.
+ */
+void walt_trig_cpufreq_update(int cpu)
+{
+	unsigned long flags;
+	int i;
+
+	for_each_online_cpu(i) {
+		struct rq *rq;
+
+		if (cpu >= 0 && i != cpu)
+			continue;
+
+		rq = cpu_rq(i);
+		raw_spin_lock_irqsave(&rq->__lock, flags);
+		waltgov_run_callback(rq, 0);
+		raw_spin_unlock_irqrestore(&rq->__lock, flags);
+	}
+}
+EXPORT_SYMBOL_GPL(walt_trig_cpufreq_update);
+#endif
+
 static unsigned long waltgov_get_util(struct waltgov_cpu *wg_cpu)
 {
 	struct rq *rq = cpu_rq(wg_cpu->cpu);
@@ -557,6 +606,11 @@ static unsigned long waltgov_get_util(struct waltgov_cpu *wg_cpu)
 	wg_cpu->max = max;
 	wg_cpu->reasons = 0;
 	util = cpu_util_freq_walt(wg_cpu->cpu, &wg_cpu->walt_load, &wg_cpu->reasons);
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_CPU_CLOSE_LOOP)
+	util = walt_cl_util(wg_cpu->cpu, util, wg_cpu->walt_load.ed_active);
+#endif
+
 	return uclamp_rq_util_with(rq, util, NULL);
 }
 
