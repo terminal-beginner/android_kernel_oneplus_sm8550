@@ -50,4 +50,13 @@ config OPLUS_FEATURE_WINDOW_POLICY
 	default y
 	help
 	 This feature will support different walt window history policy.
+
+config OPLUS_FEATURE_WALT_SMART_FREQ
+	bool "add smart freq in walt governor"
+	default n
+	help
+	  The features adds support for smart freq. management at different IPC
+	  levels, whenever any core of a cluster crosses configured IPC level
+	  it's associated frequency is set as the IPC smart frequency.
+
 endmenu

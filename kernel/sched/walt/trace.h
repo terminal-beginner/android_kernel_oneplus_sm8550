@@ -1595,6 +1595,124 @@ TRACE_EVENT(update_cpu_capacity,
 			__entry->rq_cpu_capacity_orig)
 );
 
+TRACE_EVENT(sched_freq_uncap,
+
+	TP_PROTO(int id, int nr_big, u32 wakeup_ctr_sum, u32 reasons,
+		 u32 cluster_active_reason, unsigned long max_cap, int max_reason),
+
+	TP_ARGS(id, nr_big, wakeup_ctr_sum, reasons, cluster_active_reason, max_cap, max_reason),
+
+	TP_STRUCT__entry(
+		__field(int, id)
+		__field(int, nr_big)
+		__field(u32, wakeup_ctr_sum)
+		__field(u32, reasons)
+		__field(u32, cluster_active_reason)
+		__field(unsigned long, max_cap)
+		__field(int, max_reason)
+	),
+
+	TP_fast_assign(
+		__entry->id = id;
+		__entry->nr_big = nr_big;
+		__entry->wakeup_ctr_sum = wakeup_ctr_sum;
+		__entry->reasons = reasons;
+		__entry->cluster_active_reason = cluster_active_reason;
+		__entry->max_cap = max_cap;
+		__entry->max_reason = BIT(max_reason);
+	),
+
+	TP_printk("cluster=%d nr_big=%d wakeup_ctr_sum=%d current_reasons=0x%x cluster_active_reason=0x%x max_cap=%lu max_reason=0x%x",
+		  __entry->id, __entry->nr_big, __entry->wakeup_ctr_sum, __entry->reasons,
+		  __entry->cluster_active_reason, __entry->max_cap, __entry->max_reason)
+);
+
+TRACE_EVENT(ipc_freq,
+
+	TP_PROTO(int id, int cpu, int index, unsigned int freq, u64 time, u64 deactivate_ns,
+		 int curr_cpu, unsigned long ipc_cnt),
+
+	TP_ARGS(id, cpu, index, freq, time, deactivate_ns, curr_cpu, ipc_cnt),
+
+	TP_STRUCT__entry(
+		__field(int, id)
+		__field(int, cpu)
+		__field(int, index)
+		__field(unsigned int, freq)
+		__field(u64, time)
+		__field(u64, deactivate_ns)
+		__field(int, curr_cpu)
+		__field(unsigned long, ipc_cnt)
+	),
+
+	TP_fast_assign(
+		__entry->id = id;
+		__entry->cpu = cpu;
+		__entry->index = index;
+		__entry->freq = freq;
+		__entry->time = time;
+		__entry->deactivate_ns = deactivate_ns;
+		__entry->curr_cpu = curr_cpu;
+		__entry->ipc_cnt = ipc_cnt;
+	),
+
+	TP_printk("cluster=%d winning_cpu=%d winning_index=%d winning_freq=%u curr_time=%llu deactivate_time=%llu current_cpu=%d current_cpu_ipc_count=%lu",
+		  __entry->id, __entry->cpu, __entry->index, __entry->freq,
+		  __entry->time, __entry->deactivate_ns, __entry->curr_cpu, __entry->ipc_cnt)
+);
+
+TRACE_EVENT(core_ctl_sbt,
+
+	TP_PROTO(bool prev_is_sbt, bool now_is_sbt, int prime_big_tasks),
+
+	TP_ARGS(prev_is_sbt, now_is_sbt, prime_big_tasks),
+
+	TP_STRUCT__entry(
+		__field(unsigned int, prev_is_sbt)
+		__field(unsigned int, now_is_sbt)
+		__field(int, prime_big_tasks)
+	),
+
+	TP_fast_assign(
+		__entry->prev_is_sbt = prev_is_sbt;
+		__entry->now_is_sbt = now_is_sbt;
+		__entry->prime_big_tasks = prime_big_tasks;
+	),
+
+	TP_printk("prev_is_sbt=%d now_is_sbt=%d prime_big_tasks=%d",
+		  __entry->prev_is_sbt, __entry->now_is_sbt, __entry->prime_big_tasks)
+);
+
+TRACE_EVENT(smart_freq_ipc,
+
+	TP_PROTO(int cpu, int cluster, unsigned long ipc, u64 delta_cycl, u64 delta_intr,
+		 unsigned int level),
+
+	TP_ARGS(cpu, cluster, ipc, delta_cycl, delta_intr, level),
+
+	TP_STRUCT__entry(
+		__field(int, cpu)
+		__field(int, cluster)
+		__field(unsigned long, ipc)
+		__field(u64, delta_cycl)
+		__field(u64, delta_intr)
+		__field(unsigned int, level)
+	),
+
+	TP_fast_assign(
+		__entry->cpu = cpu;
+		__entry->cluster = cluster;
+		__entry->ipc = ipc;
+		__entry->delta_cycl = delta_cycl;
+		__entry->delta_intr = delta_intr;
+		__entry->level = level;
+	),
+
+	TP_printk("cpu=%d cluster=%d ipc_x100=%lu delta_cycles=%llu delta_instr=%llu ipc_level=%u",
+		  __entry->cpu, __entry->cluster, __entry->ipc, __entry->delta_cycl,
+		  __entry->delta_intr, __entry->level)
+);
+
 #endif /* _TRACE_WALT_H */
 
 #undef TRACE_INCLUDE_PATH

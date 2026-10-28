@@ -114,6 +114,9 @@ struct waltgov_policy {
 #if IS_ENABLED(CONFIG_OPLUS_CPUFREQ_IOWAIT_PROTECT)
 	u64			last_update;
 #endif
+#ifdef CONFIG_OPLUS_FEATURE_WALT_SMART_FREQ
+	unsigned int		ipc_smart_freq;
+#endif
 };
 
 struct waltgov_cpu {
@@ -443,6 +446,52 @@ static inline unsigned int get_adaptive_high_freq(struct waltgov_policy *wg_poli
 		   wg_policy->tunables->adaptive_high_freq_kernel));
 }
 
+#ifdef CONFIG_OPLUS_FEATURE_WALT_SMART_FREQ
+static unsigned int get_smart_freq_limit(unsigned int freq, struct waltgov_policy *wg_policy)
+{
+	struct waltgov_cpu *wg_driv_cpu = &per_cpu(waltgov_cpu, wg_policy->driving_cpu);
+	struct walt_sched_cluster *cluster = cpu_cluster(wg_policy->policy->cpu);
+	unsigned int smart_freq, smart_reason;
+
+	/* cluster->smart_freq_info is only valid once smart_freq_init() is done */
+	if (!smart_freq_init_done)
+		return freq;
+
+	/*
+	 * ipc enabled: limit by ipc and legacy reasons together;
+	 * otherwise: limit by the legacy reasons only.
+	 */
+	if (cluster->smart_freq_info->smart_freq_ipc_participation_mask) {
+		if (freq_cap[SMART_FREQ][cluster->id] > wg_policy->ipc_smart_freq) {
+			smart_freq = freq_cap[SMART_FREQ][cluster->id];
+			smart_reason = CPUFREQ_REASON_SMART_FREQ_BIT;
+		} else if (freq_cap[SMART_FREQ][cluster->id] < wg_policy->ipc_smart_freq) {
+			smart_freq = wg_policy->ipc_smart_freq;
+			smart_reason = CPUFREQ_REASON_IPC_SMART_FREQ_BIT;
+		} else {
+			smart_freq = wg_policy->ipc_smart_freq;
+			smart_reason = CPUFREQ_REASON_SMART_FREQ_BIT |
+				       CPUFREQ_REASON_IPC_SMART_FREQ_BIT;
+		}
+	} else {
+		smart_freq = freq_cap[SMART_FREQ][cluster->id];
+		smart_reason = CPUFREQ_REASON_SMART_FREQ_BIT;
+	}
+
+	if (freq > smart_freq) {
+		freq = smart_freq;
+		wg_driv_cpu->reasons |= smart_reason;
+	}
+
+	return freq;
+}
+#else
+static inline unsigned int get_smart_freq_limit(unsigned int freq, struct waltgov_policy *wg_policy)
+{
+	return freq;
+}
+#endif
+
 static unsigned int get_next_freq(struct waltgov_policy *wg_policy,
 				  unsigned long util, unsigned long max,
 				  struct waltgov_cpu *wg_cpu, u64 time)
@@ -455,6 +504,7 @@ static unsigned int get_next_freq(struct waltgov_policy *wg_policy,
 	unsigned int final_freq;
 
 	freq = choose_freq(wg_policy, prev_laf);
+	freq = get_smart_freq_limit(freq, wg_policy);
 	trace_waltgov_next_freq_tl(policy->cpu, util, max, freq, prev_laf, prev_freq);
 #else /* !CONFIG_OPLUS_FEATURE_SUGOV_TL */
 	unsigned int freq, raw_freq, final_freq;
@@ -472,6 +522,8 @@ static unsigned int get_next_freq(struct waltgov_policy *wg_policy,
 			wg_driv_cpu->reasons = CPUFREQ_REASON_ADAPTIVE_HIGH;
 		}
 	}
+
+	freq = get_smart_freq_limit(freq, wg_policy);
 
 	trace_waltgov_next_freq(policy->cpu, util, max, raw_freq, freq, policy->min, policy->max,
 				wg_policy->cached_raw_freq, wg_policy->need_freq_update,
@@ -803,6 +855,34 @@ static unsigned int waltgov_next_freq_shared(struct waltgov_cpu *wg_cpu, u64 tim
 	return get_next_freq(wg_policy, util, max, wg_cpu, time);
 }
 
+#ifdef CONFIG_OPLUS_FEATURE_WALT_SMART_FREQ
+static void waltgov_update_smart_freq(struct waltgov_callback *cb, u64 time,
+				      unsigned int flags)
+{
+	struct waltgov_cpu *wg_cpu = container_of(cb, struct waltgov_cpu, cb);
+	struct waltgov_policy *wg_policy = wg_cpu->wg_policy;
+	unsigned long irq_flags;
+	unsigned int next_f;
+
+	raw_spin_lock_irqsave(&wg_policy->update_lock, irq_flags);
+
+	wg_policy->ipc_smart_freq = get_cluster_ipc_level_freq(wg_cpu->cpu, time);
+	update_smart_freq_capacities_one_cluster(cpu_cluster(wg_cpu->cpu));
+
+	next_f = waltgov_next_freq_shared(wg_cpu, time);
+	if (!next_f)
+		goto out;
+
+	if (wg_policy->policy->fast_switch_enabled)
+		waltgov_fast_switch(wg_policy, time, next_f);
+	else
+		waltgov_deferred_update(wg_policy, time, next_f);
+
+out:
+	raw_spin_unlock_irqrestore(&wg_policy->update_lock, irq_flags);
+}
+#endif
+
 static void waltgov_update_freq(struct waltgov_callback *cb, u64 time,
 				unsigned int flags)
 {
@@ -812,6 +892,13 @@ static void waltgov_update_freq(struct waltgov_callback *cb, u64 time,
 	unsigned int next_f;
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_FRAME_BOOST)
 	unsigned long irq_flags;
+#endif
+
+#ifdef CONFIG_OPLUS_FEATURE_WALT_SMART_FREQ
+	if (flags & WALT_CPUFREQ_SMART_FREQ_BIT) {
+		waltgov_update_smart_freq(cb, time, flags);
+		return;
+	}
 #endif
 
 	if (!wg_policy->tunables->pl && flags & WALT_CPUFREQ_PL)

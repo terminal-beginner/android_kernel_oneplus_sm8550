@@ -4307,7 +4307,7 @@ static inline void irq_work_restrict_to_mig_clusters(cpumask_t *lock_cpus)
 	}
 }
 
-static void update_cpu_capacity_helper(int cpu)
+void update_cpu_capacity_helper(int cpu)
 {
 	unsigned long fmax_capacity = arch_scale_cpu_capacity(cpu);
 	unsigned long thermal_pressure = arch_scale_thermal_pressure(cpu);
@@ -4331,6 +4331,15 @@ static void update_cpu_capacity_helper(int cpu)
 
 	cluster = cpu_cluster(cpu);
 	/* reduce the fmax_capacity under cpufreq constraints */
+#ifdef CONFIG_OPLUS_FEATURE_WALT_SMART_FREQ
+	/* the limit is 0 until smart_freq_init() has computed it */
+	if (smart_freq_init_done && cluster->walt_internal_freq_limit &&
+	    cluster->walt_internal_freq_limit != cluster->max_possible_freq)
+		fmax_capacity = mult_frac(fmax_capacity,
+					  min(cluster->walt_internal_freq_limit, cluster->max_freq),
+					  cluster->max_possible_freq);
+	else
+#endif
 	if (cluster->max_freq != cluster->max_possible_freq)
 		fmax_capacity = mult_frac(fmax_capacity, cluster->max_freq,
 					 cluster->max_possible_freq);
@@ -4371,6 +4380,9 @@ static void android_rvh_update_cpu_capacity(void *unused, int cpu, unsigned long
 #endif
 }
 
+/* wakeups per cpu in the current window, summed in walt_irq_work() */
+DEFINE_PER_CPU(u32, wakeup_ctr);
+
 /**
  * walt_irq_work() - perform walt irq work for rollover and migration
  *
@@ -4386,6 +4398,7 @@ static void walt_irq_work(struct irq_work *irq_work)
 	int level = 0;
 	int cpu;
 	bool is_migration = false;
+	u32 wakeup_ctr_sum = 0;
 
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_GKI_CPUFREQ_BOUNCING)
 	struct walt_sched_cluster *cluster;
@@ -4425,6 +4438,13 @@ static void walt_irq_work(struct irq_work *irq_work)
 
 	__walt_irq_work_locked(is_migration, &lock_cpus);
 
+	if (!is_migration) {
+		for_each_cpu(cpu, cpu_online_mask) {
+			wakeup_ctr_sum += per_cpu(wakeup_ctr, cpu);
+			per_cpu(wakeup_ctr, cpu) = 0;
+		}
+	}
+
 	for_each_cpu(cpu, &lock_cpus)
 		raw_spin_unlock(&cpu_rq(cpu)->__lock);
 
@@ -4437,7 +4457,7 @@ static void walt_irq_work(struct irq_work *irq_work)
 #else
 		qcom_rearrange_pipeline_preferred_cpus(walt_scale_demand_divisor);
 #endif
-		core_ctl_check(wrq->window_start);
+		core_ctl_check(wrq->window_start, wakeup_ctr_sum);
 	}
 }
 
@@ -4813,6 +4833,9 @@ static void android_rvh_enqueue_task(void *unused, struct rq *rq, struct task_st
 		return;
 
 	walt_lockdep_assert_rq(rq, p);
+
+	if (flags & ENQUEUE_WAKEUP)
+		per_cpu(wakeup_ctr, cpu_of(rq)) += 1;
 
 	if (!is_per_cpu_kthread(p))
 		wrq->enqueue_counter++;
