@@ -1,4 +1,7 @@
-// SPDX-License-Identifier: GPL-2.0-only
+#if IS_ENABLED(CONFIG_OPLUS_SCHED_TUNE)
+			schedtune_root_alloc();
+#endif
+			trace_android_vh_cpu_cgroup_css_alloc_early(parent);// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  kernel/sched/core.c
  *

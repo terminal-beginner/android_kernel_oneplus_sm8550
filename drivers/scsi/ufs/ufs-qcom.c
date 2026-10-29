@@ -2613,9 +2613,6 @@ static void ufs_qcom_set_caps(struct ufs_hba *hba)
 		hba->caps |= UFSHCD_CAP_AGGR_POWER_COLLAPSE;
 	}
 
-	if (!host->disable_wb_support)
-		hba->caps |= UFSHCD_CAP_WB_EN;
-
 	hba->caps &= ~UFSHCD_CAP_CLK_SCALING;
 	hba->caps |= UFSHCD_CAP_CRYPTO;
 

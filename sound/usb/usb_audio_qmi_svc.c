@@ -1151,6 +1151,7 @@ static void uaudio_disconnect(void *unused, struct usb_interface *intf)
 		mutex_lock(&chip->mutex);
 	}
 
+
 	uaudio_dev_cleanup(dev);
 done:
 	mutex_unlock(&chip->mutex);
