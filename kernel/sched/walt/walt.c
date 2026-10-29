@@ -4429,17 +4429,6 @@ static void walt_irq_work(struct irq_work *irq_work)
 	}
 #endif
 
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_GKI_CPUFREQ_BOUNCING)
-	struct walt_sched_cluster *cluster;
-	for_each_sched_cluster(cluster) {
-		int cpu = cpumask_first(&cluster->cpus);
-		struct cpufreq_policy *pol = cpufreq_cpu_get_raw(cpu);
-
-		if (pol)
-			cb_update(pol, walt_sched_clock());
-	}
-#endif
-
 	if (irq_work == &walt_migration_irq_work)
 		is_migration = true;
 
