@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2011-2015, 2017, 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2011-2015, 2017, 2020-2021, The Linux Foundation.
+ * All rights reserved.
  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
@@ -769,8 +769,6 @@ static int qpnp_tm_probe(struct platform_device *pdev)
 		return dev_err_probe(&pdev->dev, ret,
 				     "could not read dig_minor\n");
 
-	chip->dig_revision = (dig_major << 8) | dig_minor;
-
 	if (type != QPNP_TM_TYPE || (subtype != QPNP_TM_SUBTYPE_GEN1
 				     && subtype != QPNP_TM_SUBTYPE_GEN2
 				     && subtype != QPNP_TM_SUBTYPE_LITE)) {
@@ -803,12 +801,13 @@ static int qpnp_tm_probe(struct platform_device *pdev)
 	}
 
 	if (chip->subtype == QPNP_TM_SUBTYPE_GEN2) {
+		dig_revision = (dig_major << 8) | dig_minor;
 		/*
 		 * Check if stage 2 automatic partial shutdown must remain
 		 * enabled to avoid potential repeated faults upon reaching
 		 * over-temperature stage 3.
 		 */
-		switch (chip->dig_revision) {
+		switch (dig_revision) {
 		case 0x0001:
 		case 0x0002:
 		case 0x0100:
