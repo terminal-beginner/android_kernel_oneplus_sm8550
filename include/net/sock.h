@@ -2153,7 +2153,7 @@ static inline void __dst_negative_advice(struct sock *sk)
 	struct dst_entry *dst = __sk_dst_get(sk);
 
 	if (dst && dst->ops->negative_advice) {
-		negative_advice = (android_dst_ops_negative_advice_new_t)dst->ops->negative_advice;
+		negative_advice = (android_dst_ops_negative_advice_new_t)(void *)dst->ops->negative_advice;
 		negative_advice(sk, dst);
 	}
 }
