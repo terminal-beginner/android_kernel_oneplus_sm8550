@@ -837,10 +837,7 @@ int __vma_adjust(struct vm_area_struct *vma, unsigned long start,
 		}
 	}
 again:
-	/*
-	 * Get rid of huge pages and shared page tables straddling the split
-	 * boundary.
-	 */
+
 #ifdef CONFIG_CONT_PTE_HUGEPAGE
 	vma_adjust_cont_pte_trans_huge(orig_vma, start, end, adjust_next);
 #else

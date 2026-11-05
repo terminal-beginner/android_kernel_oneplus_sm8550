@@ -159,6 +159,9 @@ void *qcom_mdt_read_metadata(struct device *dev, const struct firmware *fw, cons
 	if (!mdt_header_valid(fw))
 		return ERR_PTR(-EINVAL);
 
+	if (!mdt_header_valid(fw))
+		return ERR_PTR(-EINVAL);
+
 	ehdr = (struct elf32_hdr *)fw->data;
 	phdrs = (struct elf32_phdr *)(ehdr + 1);
 

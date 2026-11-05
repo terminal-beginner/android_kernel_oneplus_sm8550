@@ -2616,7 +2616,7 @@ static void ufs_qcom_set_caps(struct ufs_hba *hba)
 	if (!host->disable_wb_support)
 		hba->caps |= UFSHCD_CAP_WB_EN;
 
-	hba->caps &= ~UFSHCD_CAP_CLK_SCALING;
+
 	hba->caps |= UFSHCD_CAP_CRYPTO;
 
 	if (host->hw_ver.major >= 0x2)
