@@ -831,7 +831,10 @@ static int stmmac_set_wol(struct net_device *dev, struct ethtool_wolinfo *wol)
 		pr_info("stmmac: wakeup enable\n");
 		device_set_wakeup_capable(priv->device, 1);
 		device_set_wakeup_enable(priv->device, 1);
-		enable_irq_wake(priv->wol_irq);
+		/* Avoid unbalanced enable_irq_wake calls */
+		if (priv->wol_irq_disabled)
+			enable_irq_wake(priv->wol_irq);
+		priv->wol_irq_disabled = false;
 		if (wol->wolopts == 0)
 			priv->en_wol = false;
 		else
