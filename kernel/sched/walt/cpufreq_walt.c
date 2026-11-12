@@ -65,6 +65,7 @@ struct waltgov_tunables {
 	unsigned int		adaptive_high_freq_kernel;
 	unsigned int		target_load_thresh;
 	unsigned int		target_load_shift;
+	unsigned int		step_down_pct;
 	bool			pl;
 	int			boost;
 #ifdef CONFIG_OPLUS_FEATURE_SUGOV_TL
@@ -343,7 +344,7 @@ static unsigned int choose_freq(struct waltgov_policy *wg_policy,
 	struct cpufreq_policy *policy = wg_policy->policy;
 	unsigned int freq = policy->cur;
 	unsigned int prevfreq, freqmin, freqmax;
-	unsigned int tl;
+	unsigned int tl, target, h_freq, step_down_pct;
 	int index;
 
 	freqmin = 0;
@@ -416,6 +417,21 @@ static unsigned int choose_freq(struct waltgov_policy *wg_policy,
 
 		/* If same frequency chosen as previous then done. */
 	} while (freq != prevfreq);
+
+	/*
+	 * counter-balance the target-load tipping point: use the step below if
+	 * the target is less than step_down_pct% of the way up the gap to it.
+	 */
+	step_down_pct = READ_ONCE(wg_policy->tunables->step_down_pct);
+	if (step_down_pct) {
+		target = loadadjfreq / tl;
+		index = cpufreq_frequency_table_target(policy, target,
+						       CPUFREQ_RELATION_H);
+		h_freq = policy->freq_table[index].frequency;
+		if (freq > h_freq && target > h_freq &&
+		    mult_frac(100, target - h_freq, freq - h_freq) < step_down_pct)
+			freq = h_freq;
+	}
 
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_SUGOV_POWER_EFFIENCY)
 	freq = update_power_effiency_lock(policy, freq, loadadjfreq / tl);
@@ -1484,6 +1500,22 @@ WALTGOV_ATTR_RW(adaptive_high_freq);
 WALTGOV_ATTR_RW(target_load_thresh);
 WALTGOV_ATTR_RW(target_load_shift);
 
+#define DEFAULT_STEP_DOWN_PCT	20
+
+show_attr(step_down_pct);
+static ssize_t store_step_down_pct(struct gov_attr_set *attr_set,
+				   const char *buf, size_t count)
+{
+	struct waltgov_tunables *tunables = to_waltgov_tunables(attr_set);
+	unsigned int val;
+
+	if (kstrtouint(buf, 10, &val) || val > 100)
+		return -EINVAL;
+	WRITE_ONCE(tunables->step_down_pct, val);
+	return count;
+}
+WALTGOV_ATTR_RW(step_down_pct);
+
 static struct attribute *waltgov_attributes[] = {
 	&up_rate_limit_us.attr,
 	&down_rate_limit_us.attr,
@@ -1499,6 +1531,7 @@ static struct attribute *waltgov_attributes[] = {
 	&adaptive_high_freq.attr,
 	&target_load_thresh.attr,
 	&target_load_shift.attr,
+	&step_down_pct.attr,
 	NULL
 };
 
@@ -1606,6 +1639,7 @@ static void waltgov_tunables_save(struct cpufreq_policy *policy,
 	cached->adaptive_high_freq_kernel = tunables->adaptive_high_freq_kernel;
 	cached->target_load_thresh = tunables->target_load_thresh;
 	cached->target_load_shift = tunables->target_load_shift;
+	cached->step_down_pct = tunables->step_down_pct;
 }
 
 static void waltgov_tunables_restore(struct cpufreq_policy *policy)
@@ -1630,6 +1664,7 @@ static void waltgov_tunables_restore(struct cpufreq_policy *policy)
 	tunables->adaptive_high_freq_kernel = cached->adaptive_high_freq_kernel;
 	tunables->target_load_thresh = cached->target_load_thresh;
 	tunables->target_load_shift = cached->target_load_shift;
+	tunables->step_down_pct = cached->step_down_pct;
 }
 
 static int waltgov_init(struct cpufreq_policy *policy)
@@ -1693,6 +1728,7 @@ static int waltgov_init(struct cpufreq_policy *policy)
 #endif /* CONFIG_OPLUS_FEATURE_SUGOV_TL */
 	tunables->target_load_thresh = DEFAULT_TARGET_LOAD_THRESH;
 	tunables->target_load_shift = DEFAULT_TARGET_LOAD_SHIFT;
+	tunables->step_down_pct = DEFAULT_STEP_DOWN_PCT;
 
 	if (is_min_cluster_cpu(policy->cpu))
 		tunables->rtg_boost_freq = DEFAULT_SILVER_RTG_BOOST_FREQ;
