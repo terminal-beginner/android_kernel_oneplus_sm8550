@@ -1293,7 +1293,7 @@ static bool sdhci_msm_is_tuning_needed(struct sdhci_host *host)
 	struct mmc_ios *ios = &host->mmc->ios;
 
 	if (ios->timing == MMC_TIMING_UHS_SDR50 &&
-			host->flags & SDHCI_SDR50_NEEDS_TUNING)
+	    host->flags & SDHCI_SDR50_NEEDS_TUNING)
 		return true;
 
 	/*
@@ -1385,7 +1385,13 @@ static int sdhci_msm_execute_tuning(struct mmc_host *mmc, u32 opcode)
 	msm_host->tuning_done = 0;
 
 	if (ios.timing == MMC_TIMING_UHS_SDR50 &&
-			host->flags & SDHCI_SDR50_NEEDS_TUNING) {
+	    host->flags & SDHCI_SDR50_NEEDS_TUNING) {
+		/*
+		 * Bit1 SDHCI_CTRL_UHS_SDR50 of the Host Control 2 register is
+		 * already set by the sdhci_set_ios -> sdhci_msm_set_uhs_signaling().
+		 * It is not necessary to set it again here.
+		 */
+
 		config = readl_relaxed(host->ioaddr + msm_offset->core_vendor_spec);
 		config &= ~CORE_HC_SELECT_IN_MASK;
 		config |= CORE_HC_SELECT_IN_EN | CORE_HC_SELECT_IN_SDR50;
@@ -2027,7 +2033,6 @@ static void sdhci_msm_check_power_status(struct sdhci_host *host, u32 req_type)
 		sdhci_writeb(host, 0, SDHCI_POWER_CONTROL);
 		host->pwr = 0;
 	}
-
 	pr_debug("%s: %s: request %d done\n", mmc_hostname(host->mmc),
 			__func__, req_type);
 

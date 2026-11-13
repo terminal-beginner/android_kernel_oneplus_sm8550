@@ -1,4 +1,7 @@
-// SPDX-License-Identifier: GPL-2.0-only
+#if IS_ENABLED(CONFIG_OPLUS_SCHED_TUNE)
+			schedtune_root_alloc();
+#endif
+			trace_android_vh_cpu_cgroup_css_alloc_early(parent);// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  kernel/sched/core.c
  *
@@ -10166,7 +10169,6 @@ void sched_move_task(struct task_struct *tsk)
 	schedtune_attach(tsk);
 #endif
 	trace_android_vh_sched_move_task(tsk);
-
 	rq = task_rq_lock(tsk, &rf);
 	update_rq_clock(rq);
 
