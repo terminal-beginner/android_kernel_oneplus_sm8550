@@ -107,7 +107,6 @@ int flsh_max_current_mA = 0;
 #endif
 
 #ifdef OPLUS_FEATURE_CAMERA_COMMON
-int flsh_max_current_mA = 0;
 #endif
 
 enum flash_led_type {
